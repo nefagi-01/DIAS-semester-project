@@ -74,30 +74,60 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     # Subsample of points used for speculation
     mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
     
+    if measure:
+        A_time = []
+        B_time = []
+        speculation_time = []
+        correction_time = []
+    
     # Assignment step
     labels = getLables(X, centroids)
     for i in range(num_iter):
         # Save previous labels
         prev_labels = labels
 
+        if measure:
+            start = time.time()
         # Speculate centroids using mask
         # If some clusters are small, they may not be sampled. Therefore, update only centroids whose clusters have subsamples.
         ma = np.ma.masked_invalid(getCentroids(X[mask], labels[mask], k))
         centroids[~ma.mask] = ma.data[~ma.mask]
+        if measure:
+            end = time.time()
+            speculation_time.append(end-start)
+            start = time.time()
         
         # Assignment step, using the centroids before speculated
         labels, e = getLables(X, centroids, get_e = True)
+        if measure:
+            end = time.time()
+            A_time.append(end-start)
                 
         # Before update step, save speculated_centroids for correction
         speculated_centroids = centroids
         
+        if measure:
+            start = time.time()
         # Update step, using prev_labels (i.e: labels before update due to getLabels done on speculation)
         centroids = getCentroids(X, prev_labels, k)
-        
+        if measure:
+            end = time.time()
+            B_time.append(end-start)
+            start = time.time()
+            
         labels = getCorrectedLables(X, centroids, speculated_centroids, e, labels)
+        
+        if measure:
+            end = time.time()
+            correction_time.append(end-start)
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
+            if measure:
+                return labels, centroids, A_time, B_time, speculation_time, correction_time
             return labels, centroids
         
+    if measure:
+        return labels, centroids, A_time, B_time, speculation_time, correction_time
+    
     return labels, centroids

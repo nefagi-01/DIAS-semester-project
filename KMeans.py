@@ -2,6 +2,9 @@ from time import process_time_ns
 import numpy as np
 import gc
 
+# Used for converting ns in ms
+FACTOR = 1e+06
+
 # Helpers
 def getLables(X, centroids, get_e=False):
     diff = X[:, None] - centroids[None]  # (n, k, d)
@@ -49,7 +52,7 @@ def KMeans(X, k, num_iter=50, measure=False):
         
         if measure:
             end = process_time_ns()
-            A_time.append(end-start)
+            A_time.append((end-start)/FACTOR)
             start = process_time_ns()    
             
         # Update step
@@ -57,7 +60,7 @@ def KMeans(X, k, num_iter=50, measure=False):
         
         if measure:
             end = process_time_ns()
-            B_time.append(end-start)
+            B_time.append((end-start)/FACTOR)
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
@@ -101,14 +104,14 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         centroids[~ma.mask] = ma.data[~ma.mask]
         if measure:
             end = process_time_ns()
-            speculation_time.append(end-start)
+            speculation_time.append((end-start)/FACTOR)
             start = process_time_ns()
         
         # Assignment step, using the centroids before speculated
         labels, e = getLables(X, centroids, get_e = True)
         if measure:
             end = process_time_ns()
-            A_time.append(end-start)
+            A_time.append((end-start)/FACTOR)
                 
         # Before update step, save speculated_centroids for correction
         speculated_centroids = centroids
@@ -119,14 +122,14 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         centroids = getCentroids(X, prev_labels, k)
         if measure:
             end = process_time_ns()
-            B_time.append(end-start)
+            B_time.append((end-start)/FACTOR)
             start = process_time_ns()
             
         labels = getCorrectedLables(X, centroids, speculated_centroids, e, labels)
         
         if measure:
             end = process_time_ns()
-            correction_time.append(end-start)
+            correction_time.append((end-start)/FACTOR)
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():

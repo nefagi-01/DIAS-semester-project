@@ -1,5 +1,9 @@
-import time
-import numpy as np 
+from time import process_time_ns
+import numpy as np
+import gc
+
+# Used for converting ns in ms
+FACTOR = 1e+06
 
 # Helpers
 def getLables(X, centroids, get_e=False):
@@ -32,6 +36,8 @@ def KMeans(X, k, num_iter=50, measure=False):
     if measure:
         A_time = []
         B_time = []
+        # Disable gc to have more precise measurements
+        gc.disable()
     
     for i in range(num_iter):
         # Save previous labels
@@ -39,22 +45,22 @@ def KMeans(X, k, num_iter=50, measure=False):
             prev_labels = labels
         
         if measure:
-            start = time.time()
+            start = process_time_ns()
         
         # Assignment step
         labels = getLables(X, centroids)
         
         if measure:
-            end = time.time()
-            A_time.append(end-start)
-            start = time.time()    
+            end = process_time_ns()
+            A_time.append((end-start)/FACTOR)
+            start = process_time_ns()    
             
         # Update step
         centroids = getCentroids(X, labels, k)
         
         if measure:
-            end = time.time()
-            B_time.append(end-start)
+            end = process_time_ns()
+            B_time.append((end-start)/FACTOR)
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
@@ -63,6 +69,8 @@ def KMeans(X, k, num_iter=50, measure=False):
             return labels, centroids
         
     if measure:
+        # Re-enable gc
+        gc.enable()
         return labels, centroids, np.array(A_time), np.array(B_time)
     return labels, centroids
 
@@ -79,6 +87,8 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         B_time = []
         speculation_time = []
         correction_time = []
+        # Disable gc to have more precise measurements
+        gc.disable()
     
     # Assignment step
     labels = getLables(X, centroids)
@@ -87,39 +97,39 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         prev_labels = labels
 
         if measure:
-            start = time.time()
+            start = process_time_ns()
         # Speculate centroids using mask
         # If some clusters are small, they may not be sampled. Therefore, update only centroids whose clusters have subsamples.
         ma = np.ma.masked_invalid(getCentroids(X[mask], labels[mask], k))
         centroids[~ma.mask] = ma.data[~ma.mask]
         if measure:
-            end = time.time()
-            speculation_time.append(end-start)
-            start = time.time()
+            end = process_time_ns()
+            speculation_time.append((end-start)/FACTOR)
+            start = process_time_ns()
         
         # Assignment step, using the centroids before speculated
         labels, e = getLables(X, centroids, get_e = True)
         if measure:
-            end = time.time()
-            A_time.append(end-start)
+            end = process_time_ns()
+            A_time.append((end-start)/FACTOR)
                 
         # Before update step, save speculated_centroids for correction
         speculated_centroids = centroids
         
         if measure:
-            start = time.time()
+            start = process_time_ns()
         # Update step, using prev_labels (i.e: labels before update due to getLabels done on speculation)
         centroids = getCentroids(X, prev_labels, k)
         if measure:
-            end = time.time()
-            B_time.append(end-start)
-            start = time.time()
+            end = process_time_ns()
+            B_time.append((end-start)/FACTOR)
+            start = process_time_ns()
             
         labels = getCorrectedLables(X, centroids, speculated_centroids, e, labels)
         
         if measure:
-            end = time.time()
-            correction_time.append(end-start)
+            end = process_time_ns()
+            correction_time.append((end-start)/FACTOR)
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
@@ -128,6 +138,8 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
             return labels, centroids
         
     if measure:
+        # Re-enable gc
+        gc.enable()
         return labels, centroids, A_time, B_time, speculation_time, correction_time
     
     return labels, centroids

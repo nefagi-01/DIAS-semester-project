@@ -1,5 +1,6 @@
 from time import process_time_ns
-import numpy as np 
+import numpy as np
+import gc
 
 # Helpers
 def getLables(X, centroids, get_e=False):
@@ -32,6 +33,8 @@ def KMeans(X, k, num_iter=50, measure=False):
     if measure:
         A_time = []
         B_time = []
+        # Disable gc to have more precise measurements
+        gc.disable()
     
     for i in range(num_iter):
         # Save previous labels
@@ -63,6 +66,8 @@ def KMeans(X, k, num_iter=50, measure=False):
             return labels, centroids
         
     if measure:
+        # Re-enable gc
+        gc.enable()
         return labels, centroids, np.array(A_time), np.array(B_time)
     return labels, centroids
 
@@ -79,6 +84,8 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         B_time = []
         speculation_time = []
         correction_time = []
+        # Disable gc to have more precise measurements
+        gc.disable()
     
     # Assignment step
     labels = getLables(X, centroids)
@@ -128,6 +135,8 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
             return labels, centroids
         
     if measure:
+        # Re-enable gc
+        gc.enable()
         return labels, centroids, A_time, B_time, speculation_time, correction_time
     
     return labels, centroids

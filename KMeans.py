@@ -65,6 +65,8 @@ def KMeans(X, k, num_iter=50, measure=False):
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
             if measure:
+                # Re-enable gc
+                gc.enable()
                 return labels, centroids, np.array(A_time), np.array(B_time)
             return labels, centroids
         
@@ -134,6 +136,8 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
             if measure:
+                # Re-enable gc
+                gc.enable()
                 return labels, centroids, A_time, B_time, speculation_time, correction_time
             return labels, centroids
         

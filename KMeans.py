@@ -12,6 +12,7 @@ def getLables(X, centroids, get_e=False):
     labels = dist.argmin(1)
     if get_e:
         dist.sort(1)
+        dist = np.sqrt(dist)
         e = dist[:,1] - dist[:,0]
         return labels, e
     return labels

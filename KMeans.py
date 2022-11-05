@@ -1,6 +1,7 @@
 from time import process_time_ns
 import numpy as np
 import gc
+import pandas as pd
 
 # Used for converting ns in ms
 FACTOR = 1e+06
@@ -159,7 +160,7 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv'):
     n, d = X.shape
     np.random.seed(seed)
     centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
@@ -176,11 +177,11 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
     L_slow_list = []
     L_fast_list = []
 
-    fast_labels_list = []
-    fast_centroids_list = []
+#     fast_labels_list = []
+#     fast_centroids_list = []
     
-    slow_labels_list = []
-    slow_centroids_list = []
+#     slow_labels_list = []
+#     slow_centroids_list = []
     for i in range(num_iter):
         # Save previous labels
         if i > 0:
@@ -198,8 +199,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
         centroids = getCentroids(X, labels, k)
         
         # Save results
-        slow_labels_list.append(labels)
-        slow_centroids_list.append(centroids)
+        # slow_labels_list.append(labels)
+        # slow_centroids_list.append(centroids)
         
         # Compute avg distance
         L_slow = getAvgDist(X, centroids)
@@ -215,8 +216,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
             fast_centroids = getCentroids(X[mask], fast_labels, k)
     
         # Save results
-        fast_labels_list.append(getLables(X, fast_centroids))
-        fast_centroids_list.append(fast_centroids)
+        # fast_labels_list.append(getLables(X, fast_centroids))
+        # fast_centroids_list.append(fast_centroids)
 
         # Compute avg distance - we use the whole dataset X now!
         L_fast = getAvgDist(X, fast_centroids)
@@ -227,6 +228,16 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
         
         # Check convergence
         if i > 0 and (labels == prev_labels).all():
-            return np.array(fast_labels_list), np.array(fast_centroids_list), np.array(slow_labels_list), np.array(slow_centroids_list), np.array(L_slow_list), np.array(L_fast_list), np.array(L_diff_list)
+            break
         
-    return np.array(fast_labels_list), np.array(fast_centroids_list), np.array(slow_labels_list), np.array(slow_centroids_list), np.array(L_slow_list), np.array(L_fast_list), np.array(L_diff_list)
+    # Save data to file
+    if save:
+        df = pd.DataFrame(np.column_stack([L_slow_list, L_fast_list, L_diff_list]), columns=['L_slow', 'L_fast', 'L_diff'])
+        df['n'] = n
+        df['d'] = d
+        df['k'] = k
+        df['seed'] = seed
+        df['subsample_size'] = subsample_size
+        df.to_csv(path,index=False)
+    
+    return labels, centroids

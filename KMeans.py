@@ -6,9 +6,18 @@ import gc
 FACTOR = 1e+06
 
 # Helpers
-def getLables(X, centroids, get_e=False):
+
+# Return distances between all datapoint, centroid pairs
+def getDist(X, centroids):
     diff = X[:, None] - centroids[None]  # (n, k, d)
-    dist = np.einsum('nkd,nkd->nk', diff, diff)
+    return np.sqrt(np.einsum('nkd,nkd->nk', diff, diff))
+
+# Return avg dist between datapoints and its closest centroid
+def getAvgDist(X, centroids):
+    return np.mean(getDist(X, centroids).min(1))
+
+def getLables(X, centroids, get_e=False):
+    dist = getDist(X, centroids)
     labels = dist.argmin(1)
     if get_e:
         dist.sort(1)
@@ -148,3 +157,76 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
         return labels, centroids, A_time, B_time, speculation_time, correction_time
     
     return labels, centroids
+
+
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01):
+    n, d = X.shape
+    np.random.seed(seed)
+    centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+    
+    # Subsampling
+    np.random.seed(seed)
+    mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
+       
+    # Number of executions n_executions = 1/subsample_size
+    n_executions = int(np.floor(1/subsample_size))
+    
+    # list of L_diff
+    L_diff_list = []
+    L_slow_list = []
+    L_fast_list = []
+
+    fast_labels_list = []
+    fast_centroids_list = []
+    
+    slow_labels_list = []
+    slow_centroids_list = []
+    for i in range(num_iter):
+        # Save previous labels
+        if i > 0:
+            prev_labels = labels
+            
+        fast_centroids = centroids    
+        
+        # SLOW EXECUTION
+        
+        # Assignment step
+        labels = getLables(X, centroids)
+        
+                    
+        # Update step
+        centroids = getCentroids(X, labels, k)
+        
+        # Save results
+        slow_labels_list.append(labels)
+        slow_centroids_list.append(centroids)
+        
+        # Compute avg distance
+        L_slow = getAvgDist(X, centroids)
+        L_slow_list.append(L_slow)
+        
+        # FAST EXECUTION
+        
+        # Execute (a,b) n_execution times
+        for j in range(n_executions):
+            # A - Assignment step
+            fast_labels = getLables(X[mask], fast_centroids) 
+            # B - Update step
+            fast_centroids = getCentroids(X[mask], fast_labels, k)
+    
+        # Save results
+        fast_labels_list.append(getLables(X, fast_centroids))
+        fast_centroids_list.append(fast_centroids)
+
+        # Compute avg distance - we use the whole dataset X now!
+        L_fast = getAvgDist(X, fast_centroids)
+        L_fast_list.append(L_fast)
+        
+        # L_diff
+        L_diff_list.append(L_fast - L_slow)
+        
+        # Check convergence
+        if i > 0 and (labels == prev_labels).all():
+            return np.array(fast_labels_list), np.array(fast_centroids_list), np.array(slow_labels_list), np.array(slow_centroids_list), np.array(L_slow_list), np.array(L_fast_list), np.array(L_diff_list)
+        
+    return np.array(fast_labels_list), np.array(fast_centroids_list), np.array(slow_labels_list), np.array(slow_centroids_list), np.array(L_slow_list), np.array(L_fast_list), np.array(L_diff_list)

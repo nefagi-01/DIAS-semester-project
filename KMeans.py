@@ -161,7 +161,7 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False):
     n, d = X.shape
     np.random.seed(seed)
     centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
@@ -211,10 +211,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             # B - Update step
             fast_centroids = getCentroids(X[mask], fast_labels, k)
         
-        if resampling and trace and i > 0:
-            fast_centroids = 0.5 * fast_centroids + 0.5 * old_fast_centroids
-        if resampling:
-            old_fast_centroids = fast_centroids
+        if resampling and trace:
+            if i > 0:
+                fast_centroids = 0.5 * fast_centroids + 0.5 * old_centroids
+            
 
         # Compute avg distance - we use the whole dataset X now!
         L_fast = getAvgDist(X, fast_centroids)
@@ -230,13 +230,16 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
                 centroids = fast_centroids
                 L_slow = L_fast
                 
+        if resampling and trace:
+            old_centroids = centroids
+                
         # Resample
         if resampling:
             mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
             
         
-        # Check convergence
-        if i > 0 and ((labels == prev_labels).all() or np.abs(L_slow-prev_L_slow) <= tol):
+        # Check convergence - use relative difference
+        if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
             break
         
     # Save data to file
@@ -249,5 +252,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         df['subsample_size'] = subsample_size
         df['steps'] = i
         df.to_csv(path,index=False)
+    
+    if return_steps:
+        return labels, centroids, i
     
     return labels, centroids

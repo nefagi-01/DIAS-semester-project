@@ -161,32 +161,30 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv'):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False):
     n, d = X.shape
     np.random.seed(seed)
     centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
     
     # Subsampling
-    np.random.seed(seed)
+    if not resampling:
+        np.random.seed(seed)
     mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
        
     # Number of executions n_executions = 1/subsample_size
     n_executions = int(np.floor(1/subsample_size))
     
-    # list of L_diff
-    L_diff_list = []
-    L_slow_list = []
-    L_fast_list = []
-
-#     fast_labels_list = []
-#     fast_centroids_list = []
-    
-#     slow_labels_list = []
-#     slow_centroids_list = []
+    if measure:
+        # list of L_diff
+        L_diff_list = []
+        L_slow_list = []
+        L_fast_list = []
+        
     for i in range(num_iter):
-        # Save previous labels
+        # Save previous labels and L_slow
         if i > 0:
             prev_labels = labels
+            prev_L_slow = L_slow
             
         fast_centroids = centroids    
         
@@ -199,13 +197,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         # Update step
         centroids = getCentroids(X, labels, k)
         
-        # Save results
-        # slow_labels_list.append(labels)
-        # slow_centroids_list.append(centroids)
-        
         # Compute avg distance
         L_slow = getAvgDist(X, centroids)
-        L_slow_list.append(L_slow)
+        if measure:
+            L_slow_list.append(L_slow)
         
         # FAST EXECUTION
         
@@ -215,30 +210,50 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             fast_labels = getLables(X[mask], fast_centroids) 
             # B - Update step
             fast_centroids = getCentroids(X[mask], fast_labels, k)
-    
-        # Save results
-        # fast_labels_list.append(getLables(X, fast_centroids))
-        # fast_centroids_list.append(fast_centroids)
+        
+        if resampling and trace:
+            if i > 0:
+                fast_centroids = 0.5 * fast_centroids + 0.5 * old_centroids
+            
 
         # Compute avg distance - we use the whole dataset X now!
         L_fast = getAvgDist(X, fast_centroids)
-        L_fast_list.append(L_fast)
+        if measure:
+            L_fast_list.append(L_fast)
+
+            # L_diff
+            L_diff_list.append(L_fast - L_slow)
+            
+        # Choose best centroids between fast and slow
+        if choose_best:
+            if L_fast < L_slow:
+                centroids = fast_centroids
+                L_slow = L_fast
+                
+        if resampling and trace:
+            old_centroids = centroids
+                
+        # Resample
+        if resampling:
+            mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
+            
         
-        # L_diff
-        L_diff_list.append(L_fast - L_slow)
-        
-        # Check convergence
-        if i > 0 and (labels == prev_labels).all():
+        # Check convergence - use relative difference
+        if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
             break
         
     # Save data to file
-    if save:
+    if measure and save:
         df = pd.DataFrame(np.column_stack([L_slow_list, L_fast_list, L_diff_list]), columns=['L_slow', 'L_fast', 'L_diff'])
         df['n'] = n
         df['d'] = d
         df['k'] = k
         df['seed'] = seed
         df['subsample_size'] = subsample_size
+        df['steps'] = i
         df.to_csv(path,index=False)
+    
+    if return_steps:
+        return labels, centroids, i
     
     return labels, centroids

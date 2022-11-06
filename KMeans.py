@@ -8,21 +8,22 @@ FACTOR = 1e+06
 
 # Helpers
 
-# Return distances between all datapoint, centroid pairs
+# Return squared distances between all datapoint, centroid pairs
 def getDist(X, centroids):
     diff = X[:, None] - centroids[None]  # (n, k, d)
-    return np.sqrt(np.einsum('nkd,nkd->nk', diff, diff))
+    return np.einsum('nkd,nkd->nk', diff, diff)
 
-# Return avg dist between datapoints and its closest centroid
-def getAvgDist(X, centroids):
+# Return avg squared dist between datapoints and its closest centroid
+def getAvgsDist(X, centroids):
     return np.mean(getDist(X, centroids).min(1))
 
 def getLables(X, centroids, get_e=False):
     dist = getDist(X, centroids)
     labels = dist.argmin(1)
     if get_e:
-        dist.sort(1)
+        # take root of squared distances to have distances
         dist = np.sqrt(dist)
+        dist.sort(1)
         e = dist[:,1] - dist[:,0]
         return labels, e
     return labels

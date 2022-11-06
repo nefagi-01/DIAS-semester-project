@@ -14,7 +14,7 @@ def getDist(X, centroids):
     return np.einsum('nkd,nkd->nk', diff, diff)
 
 # Return avg squared dist between datapoints and its closest centroid
-def getAvgsDist(X, centroids):
+def getAvgDist(X, centroids):
     return np.mean(getDist(X, centroids).min(1))
 
 def getLables(X, centroids, get_e=False):

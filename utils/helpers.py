@@ -6,7 +6,7 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 from openml.datasets import list_datasets, get_datasets
-
+from sklearn import cluster, datasets, mixture
 
 
 def fit_linear_regression(df, x_name, y_name):
@@ -75,4 +75,105 @@ def load_datasets(query, n_datasets = 10, search = True):
     X_list = [dataset.get_data()[0].select_dtypes([np.number]).to_numpy() for dataset in dataset_list]
     return X_list
 
+
+def generate_complex_datasets(n_samples, seed):
+    # set seed
+    np.random.seed(seed)
+    
+    # ============
+    # Generate datasets. We choose the size big enough to see the scalability
+    # of the algorithms, but not too big to avoid too long running times
+    # ============
+    n_samples = n_samples
+    noisy_circles = datasets.make_circles(n_samples=n_samples, factor=0.5, noise=0.05)
+    noisy_moons = datasets.make_moons(n_samples=n_samples, noise=0.05)
+    blobs = datasets.make_blobs(n_samples=n_samples, random_state=8)
+    no_structure = np.random.rand(n_samples, 2), None
+
+    # Anisotropicly distributed data
+    random_state = seed
+    X, y = datasets.make_blobs(n_samples=n_samples, random_state=random_state, center_box = (-40, 40))
+    transformation = [[0.6, -0.6], [-0.4, 0.8]]
+    X_aniso = np.dot(X, transformation)
+    aniso = (X_aniso, y)
+
+    # blobs with varied variances
+    varied = datasets.make_blobs(
+        n_samples=n_samples, cluster_std=[1.0, 2.5, 0.5], random_state=random_state, center_box = (-40, 40)
+    )
+    
+    default_base = {
+    "quantile": 0.3,
+    "eps": 0.3,
+    "damping": 0.9,
+    "preference": -200,
+    "n_neighbors": 3,
+    "n_clusters": 3,
+    "min_samples": 7,
+    "xi": 0.05,
+    "min_cluster_size": 0.1,
+    }
+
+    dataset_list = [
+        {
+            "name": "Noisy circles",
+            "dataset": noisy_circles,
+             "parameters":   {
+                    "damping": 0.77,
+                    "preference": -240,
+                    "quantile": 0.2,
+                    "n_clusters": 2,
+                    "min_samples": 7,
+                    "xi": 0.08,
+                }
+        },
+        {
+            "name": "Noisy moons",
+            "dataset": noisy_moons,
+            "parameters": {
+                "damping": 0.75,
+                "preference": -220,
+                "n_clusters": 2,
+                "min_samples": 7,
+                "xi": 0.1,
+            },
+        },
+        {
+            "name": "Varied",
+            "dataset": varied,
+            "parameters": {
+                "eps": 0.18,
+                "n_neighbors": 2,
+                "min_samples": 7,
+                "xi": 0.01,
+                "min_cluster_size": 0.2,
+            },
+        },
+        {
+            "name": "Anisotropic",
+            "dataset": aniso,
+            "parameters": {
+                "eps": 0.15,
+                "n_neighbors": 2,
+                "min_samples": 7,
+                "xi": 0.1,
+                "min_cluster_size": 0.2,
+            },
+        },
+        {
+            "name": "Blobs",
+             "dataset": blobs,
+             "parameters": {
+                 "min_samples": 7,
+                 "xi": 0.1,
+                 "min_cluster_size": 0.2}
+        },
+        {
+            "name": "No structure",
+            "dataset": no_structure,
+            "parameters": {}
+        },
+    ]
+    
+    return dataset_list
     

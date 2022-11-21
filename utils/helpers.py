@@ -5,21 +5,32 @@ from typing import List
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
-from openml.datasets import list_datasets, get_datasets
+# from openml.datasets import list_datasets, get_datasets
+import openml
+openml.datasets.functions._get_dataset_parquet = lambda x: None 
 from sklearn import cluster, datasets, mixture
+from sklearn.cluster import KMeans
+from matplotlib.ticker import MaxNLocator
+from os import listdir
+from os.path import isfile, join
+import arff
 
-
-def fit_linear_regression(df, x_name, y_name):
+def fit_linear_regression(df, x_name, y_name, print_text = True):
     X = df[x_name].to_numpy().reshape(-1, 1)  
     y = df[y_name].to_numpy()
 
     model = LinearRegression()
     model.fit(X, y);
-    print(f'Model with x: {x_name}, y: {y_name}')
-    print(f'\tCoefficient: {model.coef_}')
-    print(f'\tIntercept: {model.intercept_}')
+    if print_text:
+        print(f'Model with x: {x_name}, y: {y_name}')
+        print(f'\tCoefficient: {model.coef_}')
+        print(f'\tIntercept: {model.intercept_}')
     return model
 
+def estimate_optimal_centroids(X, k, seed = 0,n_init = 50, tol = 1e-6):
+    kmeans = KMeans(n_clusters = k, random_state = seed , n_init = n_init, tol = tol).fit(X)
+    centroids = kmeans.cluster_centers_
+    return centroids
 
 def clean_dataset(df):
     # Remove inf values
@@ -28,28 +39,30 @@ def clean_dataset(df):
     return df_clean
 
 
-def generate_clusters(n_clusters=3, d=2, n=100, seed = None):
+def generate_clusters(n_clusters=3, d=2, n=100, seed = None, plot = False):
     if seed is not None:
         np.random.seed(seed)
     centers = np.random.rand(n_clusters, d) * 15
     cluster_std = np.random.normal(1, 0.2, n_clusters)
     X, y = make_blobs(n_samples=n, cluster_std=cluster_std, centers=centers, n_features=d, random_state=1)
 
-    # print("2d plot")
-    # for cluster in range(n_clusters):
-    #     plt.scatter(X[y == cluster, 0], X[y == cluster, 1], s=10, label=f"Cluster{cluster}")
+    if plot:
+        print("2d plot")
+        for cluster in range(n_clusters):
+            plt.scatter(X[y == cluster, 0], X[y == cluster, 1], s=10, label=f"Cluster{cluster}")
     return centers, cluster_std, X, y
 
 # function for plotting list of timeseries
 def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = True, ax = None):
+    df.index = df.index + 1
     ax = sns.lineplot(data = df, ax = ax)
+    # enforce integer ticks on x-axis
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     if xlabel and ylabel:
         ax.set(xlabel=xlabel, ylabel=ylabel)
     if show:
         plt.show()
     return ax
-
-
 
 """
 Datasets are retrieved from OpenML using an API. It consists in the following steps:
@@ -71,7 +84,7 @@ def load_datasets(query, n_datasets = 10, search = True):
     
     # Load datasets    
     dataset_ids = pd.read_csv('./data/dataset_ids.csv')['did']
-    dataset_list = get_datasets(dataset_ids=dataset_ids)
+    dataset_list =[openml.datasets.get_dataset(id) for id in dataset_ids]
     X_list = [dataset.get_data()[0].select_dtypes([np.number]).to_numpy() for dataset in dataset_list]
     return X_list
 
@@ -177,3 +190,28 @@ def generate_complex_datasets(n_samples, seed):
     
     return dataset_list
     
+    
+
+"""
+Import datasets manually picked and downloaded in the folder /datasets/
+Function used when OpenML servers do not respond to queries, when using function `load_datasets`
+"""
+def load_downloaded_datasets(path = './datasets/'):
+    files = [f for f in listdir(path) if isfile(join(path, f))]
+
+    X_list = []
+
+    for file in files:
+        dataset = arff.load(open(path + file, 'r'))
+        data = np.array(dataset['data'])
+        index_numerical = [ i for i, attribute in enumerate(dataset['attributes']) if attribute[1] == 'REAL' or attribute[1] == 'INTEGER' or attribute[1] == 'NUMERIC']
+        data = data[:, index_numerical]
+        data = data.astype(np.float64)
+        X_list.append(data)
+        
+    return X_list
+
+
+def agg_and_plot(df, x, y, ax = None):
+    df_agg = df.groupby(x).agg({y : np.median}).reset_index()
+    sns.lineplot(data=df_agg, x=x, y=y, ax = ax)

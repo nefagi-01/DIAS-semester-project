@@ -161,7 +161,7 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False):
     n, d = X.shape
     np.random.seed(seed)
     centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
@@ -169,6 +169,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
     # Subsampling
     if not resampling:
         np.random.seed(seed)
+        
     mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
        
     # Number of executions n_executions = 1/subsample_size
@@ -180,6 +181,15 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         L_slow_list = []
         L_fast_list = []
         
+    if measure_time:
+        A_time = []
+        B_time = []
+        sampling_time = []
+        sketching_time = []
+        # Disable gc to have more precise measurements
+        gc.disable()
+        
+                
     for i in range(num_iter):
         # Save previous labels and L_slow
         if i > 0:
@@ -190,12 +200,23 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         # SLOW EXECUTION
         
+        if measure_time:
+            start = process_time_ns()
         # Assignment step
         labels = getLables(X, centroids)
         
+        if measure_time:
+            end = process_time_ns()
+            A_time.append((end-start)/FACTOR)
+            start = process_time_ns()
+
                     
         # Update step
         centroids = getCentroids(X, labels, k)
+        
+        if measure_time:
+            end = process_time_ns()
+            B_time.append((end-start)/FACTOR)
         
         # Compute avg distance
         L_slow = getAvgDist(X, centroids)
@@ -204,12 +225,21 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         # FAST EXECUTION
         
+        if measure_time:
+            start = process_time_ns()
+            
+        # Apply mask
+        X_subsample = X[mask]
         # Execute (a,b) n_execution times
         for j in range(n_executions):
             # A - Assignment step
-            fast_labels = getLables(X[mask], fast_centroids) 
+            fast_labels = getLables(X_subsample, fast_centroids) 
             # B - Update step
-            fast_centroids = getCentroids(X[mask], fast_labels, k)
+            fast_centroids = getCentroids(X_subsample, fast_labels, k)
+            
+        if measure_time:
+            end = process_time_ns()
+            sketching_time.append((end-start)/FACTOR)
         
         if resampling and trace:
             if i > 0:
@@ -235,8 +265,12 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
                 
         # Resample
         if resampling:
+            if measure_time:
+                start = process_time_ns()
             mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
-            
+            if measure_time:
+                end = process_time_ns()
+                sampling_time.append((end-start)/FACTOR)            
         
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
@@ -251,6 +285,12 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         df['seed'] = seed
         df['subsample_size'] = subsample_size
         df['steps'] = i
+        if measure_time:
+            df['t_A'] = A_time
+            df['t_B'] = B_time
+            df['t_sketching'] = sketching_time
+            df['t_sampling'] = sampling_time
+            gc.enable()
         df.to_csv(path,index=False)
     
     if return_steps:

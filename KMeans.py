@@ -161,7 +161,7 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False):
     n, d = X.shape
     np.random.seed(seed)
     centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
@@ -231,6 +231,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         # Apply mask
         X_subsample = X[mask]
         # Execute (a,b) n_execution times
+        if resample_centroid:
+            resampled_centroid = X[np.random.choice(n, k, replace=False)]  # (k, d)
+            # add randomness to centroids
+            fast_centroids = 0.5*fast_centroids + 0.5*resampled_centroid
         for j in range(n_executions):
             # A - Assignment step
             fast_labels = getLables(X_subsample, fast_centroids) 
@@ -243,7 +247,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         if resampling and trace:
             if i > 0:
-                fast_centroids = 0.5 * fast_centroids + 0.5 * old_centroids
+                fast_centroids = 0.6 * fast_centroids + 0.4 * old_centroids
             
 
         # Compute avg distance - we use the whole dataset X now!

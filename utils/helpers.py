@@ -6,6 +6,7 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 # from openml.datasets import list_datasets, get_datasets
+from openml.datasets import list_datasets
 import openml
 openml.datasets.functions._get_dataset_parquet = lambda x: None 
 from sklearn import cluster, datasets, mixture
@@ -213,5 +214,5 @@ def load_downloaded_datasets(path = './datasets/'):
 
 
 def agg_and_plot(df, x, y, ax = None):
-    df_agg = df.groupby(x).agg({y : np.median}).reset_index()
+    df_agg = df.groupby(x).agg({y : np.mean}).reset_index()
     sns.lineplot(data=df_agg, x=x, y=y, ax = ax)

@@ -174,7 +174,7 @@ def subsample(vector, sample_size, offset):
     return vector[offset : offset + sample_size], offset + sample_size
     
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 0.01, MAX_COUNTER = 3):
     
     if measure:
         # list of L_diff
@@ -225,6 +225,11 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
     # Number of executions n_executions = 1/subsample_size
     n_executions = int(np.floor(1/subsample_size))
     
+    # Counter to decide when to switch off resample centroids
+    counter = 0
+    # Trace counter 
+    trace_counter = 1
+    
     
         
     precomputed = False
@@ -272,7 +277,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             # subsample centroids
             resampled_centroid, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
             # add randomness to centroids
-            fast_centroids = 0.6*fast_centroids + 0.4*resampled_centroid
+            fast_centroids = 0*fast_centroids + 1*resampled_centroid
             if measure_time:
                 end = process_time_ns()
                 sampling_centroids_time.append((end-start)/FACTOR)
@@ -281,11 +286,27 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             start = process_time_ns()
             
         # Execute (a,b) n_execution times
+        if i > 0:
+            previous_fast_centroids = fast_centroids
         for j in range(n_executions):
             # A - Assignment step
             fast_labels = getLables(X_subsample, fast_centroids) 
             # B - Update step
             fast_centroids = getCentroids(X_subsample, fast_labels, k)
+            
+        
+        # check if fast_centroids equal to previous fast_centroids
+        if i > 0 and resample_centroid and np.allclose(fast_centroids, previous_fast_centroids, rtol=tol_resampling_centroids, atol = tol_resampling_centroids):
+            counter += 1
+            print('im in')
+        else:
+            counter = 0
+            
+        # if we keep gettin similar vector with centroid resampling -> we found optimum position
+        if resample_centroid and counter >= MAX_COUNTER:
+            resample_centroid = False
+            trace = True
+            
             
         if measure_time:
             end = process_time_ns()
@@ -293,7 +314,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         if resampling and trace:
             if i > 0:
-                fast_centroids = 0.6 * fast_centroids + 0.4 * old_centroids
+                fast_centroids = (1/trace_counter) * fast_centroids + (1-1/trace_counter) * old_centroids
+                trace_counter += 1
             
 
         # Compute avg distance

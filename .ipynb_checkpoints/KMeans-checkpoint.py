@@ -2,6 +2,7 @@ from time import process_time_ns
 import numpy as np
 import gc
 import pandas as pd
+from sklearn.cluster import kmeans_plusplus
 
 # Used for converting ns in ms
 FACTOR = 1e+06
@@ -46,9 +47,13 @@ def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
 
     
 # Implementations    
-def KMeans(X, k, num_iter=50, measure=False):
+def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False):
     n, d = X.shape
-    centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+    if kmeans_pp:
+        # Calculate seeds from kmeans++
+        centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
+    else:
+        centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
     if measure:
         A_time = []
         B_time = []

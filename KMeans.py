@@ -60,16 +60,16 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         # Disable gc to have more precise measurements
         gc.disable()
     
+    precomputed = False
+    
     for i in range(num_iter):
         # Save previous labels
         if i > 0:
             prev_labels = labels
         
-       
-    
-        
         # Assignment step
-        labels = getLables(X, centroids)
+        if not precomputed:
+            labels = getLables(X, centroids)
         
         if measure:
             end = process_time_ns()
@@ -83,13 +83,13 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
             end = process_time_ns()
             B_time.append((end-start)/FACTOR)
         
-        # Check convergence
-        # Check convergence - use relative difference
         if i > 0:
             prev_inertia = inertia
             
-        inertia = getAvgDist(X, centroids)
+        labels, inertia = getLables(X, centroids, get_inertia = True)
+        precomputed = True
         
+        # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((inertia-prev_inertia)/inertia) <= tol):
             if measure:
                 # Re-enable gc
@@ -180,7 +180,7 @@ def subsample(vector, sample_size, offset):
     return vector[offset : offset + sample_size], offset + sample_size
     
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 0.01, MAX_COUNTER = 3, kmeans_pp = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False):
     
     if measure:
         # list of L_diff
@@ -246,6 +246,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
                 
     for i in range(num_iter):
+        print(i)
         # Save previous labels and L_slow
         if i > 0:
             prev_labels = labels
@@ -296,27 +297,11 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             start = process_time_ns()
             
         # Execute (a,b) n_execution times
-        if i > 0:
-            previous_fast_centroids = fast_centroids
         for j in range(n_executions):
             # A - Assignment step
             fast_labels = getLables(X_subsample, fast_centroids) 
             # B - Update step
-            fast_centroids = getCentroids(X_subsample, fast_labels, k)
-            
-        
-        # check if fast_centroids equal to previous fast_centroids
-        if i > 0 and resample_centroid and np.allclose(fast_centroids, previous_fast_centroids, rtol=tol_resampling_centroids, atol = tol_resampling_centroids):
-            counter += 1
-            print('im in')
-        else:
-            counter = 0
-            
-        # if we keep gettin similar vector with centroid resampling -> we found optimum position
-        if resample_centroid and counter >= MAX_COUNTER:
-            resample_centroid = False
-            trace = True
-            
+            fast_centroids = getCentroids(X_subsample, fast_labels, k)            
             
         if measure_time:
             end = process_time_ns()
@@ -331,7 +316,9 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         # Compute avg distance
         if measure_time:
             start = process_time_ns()
-        labels, L_slow = getLables(X, centroids, get_inertia = True)           
+        labels, L_slow = getLables(X, centroids, get_inertia = True)   
+        if i > 0:
+            prev_L_fast = L_fast
         fast_labels, L_fast = getLables(X, fast_centroids, get_inertia = True)
         precomputed = True
         if measure_time:
@@ -371,6 +358,19 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             if measure_time:
                 end = process_time_ns()
                 sampling_time.append((end-start)/FACTOR)
+                
+                
+        # check if fast_centroids equal to previous fast_centroids
+        if i > 0 and resample_centroid and np.abs(prev_L_fast - L_fast)/L_fast <= tol_resampling_centroids:
+            counter += 1
+            print('im in')
+        else:
+            counter = 0
+            
+        # if we keep gettin similar vector with centroid resampling -> we found optimum position
+        if resample_centroid and counter >= MAX_COUNTER:
+            resample_centroid = False
+            trace = True
         
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):

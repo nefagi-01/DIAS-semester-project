@@ -17,7 +17,8 @@ def getDist(X, centroids):
 def getAvgDist(X, centroids):
     return np.mean(getDist(X, centroids).min(1))
 
-def getLables(X, centroids, get_e=False):
+
+def getLables(X, centroids, get_e=False, get_inertia = False):
     dist = getDist(X, centroids)
     labels = dist.argmin(1)
     if get_e:
@@ -26,6 +27,9 @@ def getLables(X, centroids, get_e=False):
         dist.sort(1)
         e = dist[:,1] - dist[:,0]
         return labels, e
+    if get_inertia:
+        inertia = np.mean(np.take_along_axis(dist, labels[:,None], axis=1))
+        return labels, inertia
     return labels
 
 def getCentroids(X, labels, k):
@@ -56,8 +60,8 @@ def KMeans(X, k, num_iter=50, measure=False):
         if i > 0:
             prev_labels = labels
         
-        if measure:
-            start = process_time_ns()
+       
+    
         
         # Assignment step
         labels = getLables(X, centroids)
@@ -161,19 +165,11 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False):
-    n, d = X.shape
-    np.random.seed(seed)
-    centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+def subsample(vector, sample_size, offset):
+    return vector[offset : offset + sample_size], offset + sample_size
     
-    # Subsampling
-    if not resampling:
-        np.random.seed(seed)
-        
-    mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
-       
-    # Number of executions n_executions = 1/subsample_size
-    n_executions = int(np.floor(1/subsample_size))
+
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False):
     
     if measure:
         # list of L_diff
@@ -189,8 +185,44 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         choose_best_time = []
         sketching_time = []
         getAvg_time = []
+        permutation_time = []
         # Disable gc to have more precise measurements
         gc.disable()
+    
+    
+    n, d = X.shape
+    
+    if measure_time:
+        start = process_time_ns()
+            
+    # permute X, this will be used for random sampling of both datapoints and centroids
+    np.random.seed(seed)
+    X_perm_k = np.random.permutation(X)
+    np.random.seed(seed + 1)
+    X_perm_subsample = np.random.permutation(X)
+    
+    # define offsets used for accessing the permutation with a sliding window
+    offset_k = 0
+    offset_X = 0
+    size_X_subsample = int(np.ceil(subsample_size * n))
+    
+    # subsample centroids
+    centroids, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
+        
+    # subsample datapoints
+    X_subsample, offset_X = subsample(X_perm_subsample, size_X_subsample, offset_X)
+
+    if measure_time:
+        end = process_time_ns()
+        permutation_time.append((end-start)/FACTOR)
+
+       
+    # Number of executions n_executions = 1/subsample_size
+    n_executions = int(np.floor(1/subsample_size))
+    
+    
+        
+    precomputed = False
         
                 
     for i in range(num_iter):
@@ -198,6 +230,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         if i > 0:
             prev_labels = labels
             prev_L_slow = L_slow
+            permutation_time.append(0)
             
         fast_centroids = centroids    
         
@@ -205,8 +238,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         if measure_time:
             start = process_time_ns()
-        # Assignment step
-        labels = getLables(X, centroids)
+            
+        if not precomputed:
+            # Assignment step
+            labels = getLables(X, centroids)
         
         if measure_time:
             end = process_time_ns()
@@ -225,15 +260,12 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         # FAST EXECUTION
         
-
-        # Apply mask
-        X_subsample = X[mask]
-        
         # Resample centroids
         if resample_centroid:
             if measure_time:
                 start = process_time_ns()
-            resampled_centroid = X[np.random.choice(n, k, replace=False)]  # (k, d)
+            # subsample centroids
+            resampled_centroid, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
             # add randomness to centroids
             fast_centroids = 0.6*fast_centroids + 0.4*resampled_centroid
             if measure_time:
@@ -262,8 +294,9 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         # Compute avg distance
         if measure_time:
             start = process_time_ns()
-        L_slow = getAvgDist(X, centroids)           
-        L_fast = getAvgDist(X, fast_centroids)
+        labels, L_slow = getLables(X, centroids, get_inertia = True)           
+        fast_labels, L_fast = getLables(X, fast_centroids, get_inertia = True)
+        precomputed = True
         if measure_time:
             end = process_time_ns()
             getAvg_time.append((end-start)/FACTOR)
@@ -281,6 +314,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
                 start = process_time_ns()
                 
             if L_fast < L_slow:
+                labels = fast_labels
                 centroids = fast_centroids
                 L_slow = L_fast
                 
@@ -295,7 +329,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         if resampling:
             if measure_time:
                 start = process_time_ns()
-            mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
+            # subsample datapoints
+            X_subsample, offset_X = subsample(X_perm_subsample, size_X_subsample, offset_X)
             if measure_time:
                 end = process_time_ns()
                 sampling_time.append((end-start)/FACTOR)
@@ -304,6 +339,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
             break
         
+            
     # Save data to file
     if measure and save:
         df = pd.DataFrame(np.column_stack([L_slow_list, L_fast_list, L_diff_list]), columns=['L_slow', 'L_fast', 'L_diff'])
@@ -322,6 +358,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             if resample_centroid:
                 df['t_sampling_centroids'] = sampling_centroids_time
             df['t_get_avg'] = getAvg_time
+            df['t_permutation'] = permutation_time
             gc.enable()
         df.to_csv(path,index=False)
     

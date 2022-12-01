@@ -185,7 +185,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         A_time = []
         B_time = []
         sampling_time = []
+        sampling_centroids_time = []
+        choose_best_time = []
         sketching_time = []
+        getAvg_time = []
         # Disable gc to have more precise measurements
         gc.disable()
         
@@ -218,23 +221,29 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             end = process_time_ns()
             B_time.append((end-start)/FACTOR)
         
-        # Compute avg distance
-        L_slow = getAvgDist(X, centroids)
-        if measure:
-            L_slow_list.append(L_slow)
+        
         
         # FAST EXECUTION
         
+
+        # Apply mask
+        X_subsample = X[mask]
+        
+        # Resample centroids
+        if resample_centroid:
+            if measure_time:
+                start = process_time_ns()
+            resampled_centroid = X[np.random.choice(n, k, replace=False)]  # (k, d)
+            # add randomness to centroids
+            fast_centroids = 0.6*fast_centroids + 0.4*resampled_centroid
+            if measure_time:
+                end = process_time_ns()
+                sampling_centroids_time.append((end-start)/FACTOR)
+                
         if measure_time:
             start = process_time_ns()
             
-        # Apply mask
-        X_subsample = X[mask]
         # Execute (a,b) n_execution times
-        if resample_centroid:
-            resampled_centroid = X[np.random.choice(n, k, replace=False)]  # (k, d)
-            # add randomness to centroids
-            fast_centroids = 0.5*fast_centroids + 0.5*resampled_centroid
         for j in range(n_executions):
             # A - Assignment step
             fast_labels = getLables(X_subsample, fast_centroids) 
@@ -250,9 +259,17 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
                 fast_centroids = 0.6 * fast_centroids + 0.4 * old_centroids
             
 
-        # Compute avg distance - we use the whole dataset X now!
+        # Compute avg distance
+        if measure_time:
+            start = process_time_ns()
+        L_slow = getAvgDist(X, centroids)           
         L_fast = getAvgDist(X, fast_centroids)
+        if measure_time:
+            end = process_time_ns()
+            getAvg_time.append((end-start)/FACTOR)
         if measure:
+            
+            L_slow_list.append(L_slow)
             L_fast_list.append(L_fast)
 
             # L_diff
@@ -260,21 +277,28 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             
         # Choose best centroids between fast and slow
         if choose_best:
+            if measure_time:
+                start = process_time_ns()
+                
             if L_fast < L_slow:
                 centroids = fast_centroids
                 L_slow = L_fast
                 
+            if measure_time:
+                end = process_time_ns()
+                choose_best_time.append((end-start)/FACTOR)
+                
         if resampling and trace:
             old_centroids = centroids
                 
-        # Resample
+        # Resample datapoints
         if resampling:
             if measure_time:
                 start = process_time_ns()
             mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
             if measure_time:
                 end = process_time_ns()
-                sampling_time.append((end-start)/FACTOR)            
+                sampling_time.append((end-start)/FACTOR)
         
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
@@ -294,6 +318,10 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             df['t_B'] = B_time
             df['t_sketching'] = sketching_time
             df['t_sampling'] = sampling_time
+            df['t_choose_best'] = choose_best_time
+            if resample_centroid:
+                df['t_sampling_centroids'] = sampling_centroids_time
+            df['t_get_avg'] = getAvg_time
             gc.enable()
         df.to_csv(path,index=False)
     

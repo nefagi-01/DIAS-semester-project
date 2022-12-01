@@ -161,16 +161,29 @@ def KMeans_speculation(X, k, num_iter=50, subsample_size = 0.01, measure=False):
     return labels, centroids
 
 
+def subsample(vector, sample_size, offset):
+    return vector[offset : offset + sample_size], offset + sample_size
+    
+
 def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False):
     n, d = X.shape
-    np.random.seed(seed)
-    centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
     
-    # Subsampling
-    if not resampling:
-        np.random.seed(seed)
+    # permute X, this will be used for random sampling of both datapoints and centroids
+    np.random.seed(seed)
+    X_perm_k = np.random.permutation(X)
+    np.random.seed(seed + 1)
+    X_perm_subsample = np.random.permutation(X)
+    
+    # define offsets used for accessing the permutation with a sliding window
+    offset_k = 0
+    offset_X = 0
+    size_X_subsample = int(np.ceil(subsample_size * n))
+    
+    # subsample centroids
+    centroids, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
         
-    mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
+    # subsample datapoints
+    X_subsample, offset_X = subsample(X_perm_subsample, size_X_subsample, offset_X)
        
     # Number of executions n_executions = 1/subsample_size
     n_executions = int(np.floor(1/subsample_size))
@@ -225,15 +238,12 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         # FAST EXECUTION
         
-
-        # Apply mask
-        X_subsample = X[mask]
-        
         # Resample centroids
         if resample_centroid:
             if measure_time:
                 start = process_time_ns()
-            resampled_centroid = X[np.random.choice(n, k, replace=False)]  # (k, d)
+            # subsample centroids
+            resampled_centroid, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
             # add randomness to centroids
             fast_centroids = 0.6*fast_centroids + 0.4*resampled_centroid
             if measure_time:
@@ -295,7 +305,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         if resampling:
             if measure_time:
                 start = process_time_ns()
-            mask = np.random.choice([True, False], size=X.shape[0], p=[subsample_size, 1-subsample_size])
+            # subsample datapoints
+            X_subsample, offset_X = subsample(X_perm_subsample, size_X_subsample, offset_X)
             if measure_time:
                 end = process_time_ns()
                 sampling_time.append((end-start)/FACTOR)

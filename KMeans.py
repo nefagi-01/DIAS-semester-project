@@ -47,12 +47,13 @@ def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
 
     
 # Implementations    
-def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6):
+def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6, return_steps = False):
     n, d = X.shape
     if kmeans_pp:
         # Calculate seeds from kmeans++
         centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
     else:
+        np.random.seed(seed)
         centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
     if measure:
         A_time = []
@@ -95,12 +96,18 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
                 # Re-enable gc
                 gc.enable()
                 return labels, centroids, np.array(A_time), np.array(B_time)
+            if return_steps:
+                return labels, centroids, i
             return labels, centroids
         
     if measure:
         # Re-enable gc
         gc.enable()
         return labels, centroids, np.array(A_time), np.array(B_time)
+    
+    if return_steps:
+        return labels, centroids, i
+    
     return labels, centroids
 
 
@@ -180,7 +187,7 @@ def subsample(vector, sample_size, offset):
     return vector[offset : offset + sample_size], offset + sample_size
     
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False, hybrid = False):
     
     if measure:
         # list of L_diff
@@ -246,12 +253,12 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
                 
     for i in range(num_iter):
-        print(i)
         # Save previous labels and L_slow
         if i > 0:
             prev_labels = labels
             prev_L_slow = L_slow
-            permutation_time.append(0)
+            if measure_time:
+                permutation_time.append(0)
             
         fast_centroids = centroids    
         
@@ -281,17 +288,18 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         # FAST EXECUTION
         
+        
+        if measure_time:
+            start = process_time_ns()
         # Resample centroids
         if resample_centroid:
-            if measure_time:
-                start = process_time_ns()
             # subsample centroids
             resampled_centroid, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
             # add randomness to centroids
             fast_centroids = 0.5*fast_centroids + 0.5*resampled_centroid
-            if measure_time:
-                end = process_time_ns()
-                sampling_centroids_time.append((end-start)/FACTOR)
+        if measure_time:
+            end = process_time_ns()
+            sampling_centroids_time.append((end-start)/FACTOR)
                 
         if measure_time:
             start = process_time_ns()
@@ -309,8 +317,9 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         
         if resampling and trace:
             if i > 0:
-                fast_centroids = (1/trace_counter) * fast_centroids + (1-1/trace_counter) * old_centroids
-                trace_counter += 1
+                # fast_centroids = (1/trace_counter) * fast_centroids + (1-1/trace_counter) * old_centroids
+                # trace_counter += 1
+                fast_centroids = 0.6 * fast_centroids + 0.4 * old_centroids
             
 
         # Compute avg distance
@@ -359,18 +368,17 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
                 end = process_time_ns()
                 sampling_time.append((end-start)/FACTOR)
                 
-                
-        # check if fast_centroids equal to previous fast_centroids
-        if i > 0 and resample_centroid and np.abs(prev_L_fast - L_fast)/L_fast <= tol_resampling_centroids:
-            counter += 1
-            print('im in')
-        else:
-            counter = 0
-            
-        # if we keep gettin similar vector with centroid resampling -> we found optimum position
-        if resample_centroid and counter >= MAX_COUNTER:
-            resample_centroid = False
-            trace = True
+        if hybrid:    
+            # check if fast_centroids leads to similar result of previous fast_centroids
+            if i > 0 and resample_centroid and np.abs(prev_L_fast - L_fast)/L_fast <= tol_resampling_centroids:
+                counter += 1
+            else:
+                counter = 0
+
+            # if we keep gettin similar vector with centroid resampling -> we found optimum position
+            if resample_centroid and counter >= MAX_COUNTER:
+                resample_centroid = False
+                trace = True
         
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((L_slow-prev_L_slow)/L_slow) <= tol):
@@ -392,7 +400,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             df['t_sketching'] = sketching_time
             df['t_sampling'] = sampling_time
             df['t_choose_best'] = choose_best_time
-            if resample_centroid:
+            if len(sampling_centroids_time) > 0:
                 df['t_sampling_centroids'] = sampling_centroids_time
             df['t_get_avg'] = getAvg_time
             df['t_permutation'] = permutation_time

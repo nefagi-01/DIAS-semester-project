@@ -1,0 +1,3 @@
+L_slow,L_fast,L_diff,n,d,k,seed,subsample_size,steps,t_A,t_B,t_sketching,t_sampling,t_choose_best,t_sampling_centroids,t_get_avg,t_permutation
+2625812760.3102365,,,104820,7,7,0,0.01,1,0.0,0.0,0.0,0.0,0.0,0.0,93.75,15.625
+2566022351.8710604,,,104820,7,7,0,0.01,1,0.0,0.0,31.25,0.0,0.0,0.0,78.125,0.0

@@ -47,14 +47,17 @@ def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
 
     
 # Implementations    
-def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6, return_steps = False):
+def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6, return_steps = False, centroids = None):
     n, d = X.shape
-    if kmeans_pp:
-        # Calculate seeds from kmeans++
-        centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
-    else:
-        np.random.seed(seed)
-        centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+    
+    if centroids is None:
+        if kmeans_pp:
+            # Calculate seeds from kmeans++
+            centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
+        else:
+            np.random.seed(seed)
+            centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+            
     if measure:
         A_time = []
         B_time = []
@@ -187,7 +190,7 @@ def subsample(vector, sample_size, offset):
     return vector[offset : offset + sample_size], offset + sample_size
     
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False, hybrid = False):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False, hybrid = False, p = 0.5, centroids = None):
     
     if measure:
         # list of L_diff
@@ -224,12 +227,13 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
     offset_X = 0
     size_X_subsample = int(np.ceil(subsample_size * n))
     
-    if kmeans_pp:
-        # Calculate seeds from kmeans++
-        centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
-    else:
-        # subsample centroids
-        centroids, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
+    if centroids is  None:
+        if kmeans_pp:
+            # Calculate seeds from kmeans++
+            centroids, _ = kmeans_plusplus(X, n_clusters=k, random_state=seed)
+        else:
+            # subsample centroids
+            centroids, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
         
     # subsample datapoints
     X_subsample, offset_X = subsample(X_perm_subsample, size_X_subsample, offset_X)
@@ -296,7 +300,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             # subsample centroids
             resampled_centroid, offset_k = subsample(X_perm_k, k, offset_k)  # (k, d)
             # add randomness to centroids
-            fast_centroids = 0.5*fast_centroids + 0.5*resampled_centroid
+            fast_centroids = p*fast_centroids + (1-p)*resampled_centroid
         if measure_time:
             end = process_time_ns()
             sampling_centroids_time.append((end-start)/FACTOR)

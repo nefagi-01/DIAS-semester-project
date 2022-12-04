@@ -15,6 +15,23 @@ from matplotlib.ticker import MaxNLocator
 from os import listdir
 from os.path import isfile, join
 import arff
+from utils.KMeans import getAvgDist
+from utils.KMeans import KMeans as KMeans_personal
+
+def find_bad_initalization(X, k, tol = 1e-6, seed = 0, iteration = 10, max_iter = 50):
+    optimal_centroid = estimate_optimal_centroids(X, k, seed = seed, tol = tol)
+    optimal_inertia = getAvgDist(X, optimal_centroid)
+    worst_centroids = optimal_centroid
+    worst_inertia = optimal_inertia
+    n, d = X.shape
+    for i in range(iteration):
+        centroids = X[np.random.choice(n, k, replace=False)]  # (k, d)
+        _, centroids = KMeans_personal(X, k, num_iter=max_iter, seed = seed, tol = tol, centroids = centroids)
+        inertia = getAvgDist(X, centroids)
+        if inertia > worst_inertia:
+            worst_inertia = inertia
+            worst_centroids = centroids
+    return worst_centroids
 
 def fit_linear_regression(df, x_name, y_name, print_text = True):
     X = df[x_name].to_numpy().reshape(-1, 1)  

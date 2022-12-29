@@ -18,6 +18,26 @@ import arff
 from utils.KMeans import getAvgDist
 from utils.KMeans import KMeans as KMeans_personal
 
+
+
+def extend_df(df, m):
+    n = df.shape[0]
+    if m > n:
+        df = df.append([df.iloc[-1]] * (m - n), ignore_index=True)
+    return df
+
+def extend_array(array, m):
+    if len(array) >= m:
+        return array
+    else:
+        return extend_array(array, m-1) + [array[-1]]
+
+def clean_dataset(df):
+    # Remove inf values
+    df_clean = df.replace([np.inf, -np.inf], np.nan)
+    df_clean = df_clean.dropna()
+    return df_clean
+
 def find_bad_initalization(X, k, tol = 1e-6, seed = 0, iteration = 10, max_iter = 50):
     optimal_centroid = estimate_optimal_centroids(X, k, seed = seed, tol = tol)
     optimal_inertia = getAvgDist(X, optimal_centroid)
@@ -71,13 +91,15 @@ def generate_clusters(n_clusters=3, d=2, n=100, seed = None, plot = False):
     return centers, cluster_std, X, y
 
 # function for plotting list of timeseries
-def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = True, ax = None):
+def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = True, ax = None, title = None):
     df.index = df.index + 1
     ax = sns.lineplot(data = df, ax = ax)
     # enforce integer ticks on x-axis
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     if xlabel and ylabel:
         ax.set(xlabel=xlabel, ylabel=ylabel)
+    if title:
+        ax.set_title(title)
     if show:
         plt.show()
     return ax
@@ -89,7 +111,7 @@ Datasets are retrieved from OpenML using an API. It consists in the following st
 3. We load the datasets with the given ids using get_datasets()
 4. We transform them in numpy
 """
-def load_datasets(query, n_datasets = 10, search = True):
+def load_datasets(query, n_datasets = 10, search = True, return_meta = False):
     if search:
         # Search datasets from OpenML given these characteristics
         query = query
@@ -104,6 +126,8 @@ def load_datasets(query, n_datasets = 10, search = True):
     dataset_ids = pd.read_csv('./data/dataset_ids.csv')['did']
     dataset_list =[openml.datasets.get_dataset(id) for id in dataset_ids]
     X_list = [dataset.get_data()[0].select_dtypes([np.number]).to_numpy() for dataset in dataset_list]
+    if return_meta:
+        return X_list, dataset_list
     return X_list
 
 

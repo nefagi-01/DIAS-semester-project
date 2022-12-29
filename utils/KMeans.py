@@ -33,10 +33,14 @@ def getLables(X, centroids, get_e=False, get_inertia = False):
         return labels, inertia
     return labels
 
-def getCentroids(X, labels, k):
+def getCentroids(X, labels, k, old_centroids):
+    centroids = np.copy(old_centroids)
     group_counts = np.bincount(labels, minlength=k)[:, None]
-    fn = lambda w: np.bincount(labels, weights=w, minlength=k)
-    return np.apply_along_axis(fn, 0, X) / group_counts
+    not_empty_clusters = (group_counts!=0)
+    k_not_empty = not_empty_clusters.sum()
+    fn = lambda w: np.bincount(labels, weights=w, minlength=k_not_empty)
+    centroids[not_empty_clusters.reshape(-1)] = np.apply_along_axis(fn, 0, X) / group_counts[not_empty_clusters, None]
+    return centroids
 
 def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
     D = np.max(np.nan_to_num(np.linalg.norm(centroids - speculated_centroids, 2, 1)))
@@ -47,7 +51,7 @@ def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
 
     
 # Implementations    
-def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6, return_steps = False, centroids = None):
+def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 1e-6, return_steps = False, centroids = None, measure_inertia = False):
     n, d = X.shape
     
     if centroids is None:
@@ -63,6 +67,8 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         B_time = []
         # Disable gc to have more precise measurements
         gc.disable()
+    if measure_inertia:
+        inertia_list = []
     
     precomputed = False
     
@@ -81,7 +87,7 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
             start = process_time_ns()    
             
         # Update step
-        centroids = getCentroids(X, labels, k)
+        centroids = getCentroids(X, labels, k, centroids)
         
         if measure:
             end = process_time_ns()
@@ -93,6 +99,9 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         labels, inertia = getLables(X, centroids, get_inertia = True)
         precomputed = True
         
+        if measure_inertia:
+            inertia_list.append(inertia)
+        
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((inertia-prev_inertia)/inertia) <= tol):
             if measure:
@@ -101,12 +110,17 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
                 return labels, centroids, np.array(A_time), np.array(B_time)
             if return_steps:
                 return labels, centroids, i
+            if measure_inertia:
+                return labels, centroids, inertia_list
             return labels, centroids
         
     if measure:
         # Re-enable gc
         gc.enable()
         return labels, centroids, np.array(A_time), np.array(B_time)
+    
+    if measure_inertia:
+        return labels, centroids, inertia_list
     
     if return_steps:
         return labels, centroids, i
@@ -190,7 +204,7 @@ def subsample(vector, sample_size, offset):
     return vector[offset : offset + sample_size], offset + sample_size
     
 
-def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False, hybrid = False, p = 0.5, centroids = None):
+def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save = False, path='./data.csv', measure = False, choose_best = False, resampling = False, trace=False, tol = 1e-3, return_steps = False, measure_time = False, resample_centroid = False, tol_resampling_centroids = 1e-2, MAX_COUNTER = 3, kmeans_pp = False, hybrid = False, p = 0.5, centroids = None, q = 0.5):
     
     if measure:
         # list of L_diff
@@ -280,9 +294,8 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             A_time.append((end-start)/FACTOR)
             start = process_time_ns()
 
-                    
         # Update step
-        centroids = getCentroids(X, labels, k)
+        centroids = getCentroids(X, labels, k, centroids)
         
         if measure_time:
             end = process_time_ns()
@@ -313,7 +326,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             # A - Assignment step
             fast_labels = getLables(X_subsample, fast_centroids) 
             # B - Update step
-            fast_centroids = getCentroids(X_subsample, fast_labels, k)            
+            fast_centroids = getCentroids(X_subsample, fast_labels, k, fast_centroids)
             
         if measure_time:
             end = process_time_ns()
@@ -323,7 +336,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
             if i > 0:
                 # fast_centroids = (1/trace_counter) * fast_centroids + (1-1/trace_counter) * old_centroids
                 # trace_counter += 1
-                fast_centroids = 0.6 * fast_centroids + 0.4 * old_centroids
+                fast_centroids = q * fast_centroids + (1-q) * old_centroids
             
 
         # Compute avg distance

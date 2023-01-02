@@ -19,6 +19,11 @@ from utils.KMeans import getAvgDist
 from utils.KMeans import KMeans as KMeans_personal
 
 
+def addScatterPlot(ax, df, color, label, size=2):
+    ax.scatter(df.index + 1, df, s=size, color=color, label=label, alpha=0.5)
+    ax.legend()
+    return ax
+
 
 def extend_df(df, m):
     n = df.shape[0]

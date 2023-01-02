@@ -78,11 +78,14 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         
         # Assignment step
         if not precomputed:
+            if measure:
+                start = process_time_ns() 
             labels = getLables(X, centroids)
+            if measure:
+                end = process_time_ns() 
+                A_time.append((end-start)/FACTOR)
         
         if measure:
-            end = process_time_ns()
-            A_time.append((end-start)/FACTOR)
             start = process_time_ns()    
             
         # Update step
@@ -95,7 +98,13 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         if i > 0:
             prev_inertia = inertia
             
+        if measure:
+                start = process_time_ns() 
         labels, inertia = getLables(X, centroids, get_inertia = True)
+        if measure:
+                end = process_time_ns() 
+                A_time.append((end-start)/FACTOR)
+                
         precomputed = True
         
         if measure_inertia:
@@ -103,6 +112,10 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
         
         # Check convergence - use relative difference
         if i > 0 and ((labels == prev_labels).all() or np.abs((inertia-prev_inertia)/inertia) <= tol):
+            if measure and return_steps:
+                # Re-enable gc
+                gc.enable()
+                return labels, centroids, np.array(A_time), np.array(B_time), i
             if measure:
                 # Re-enable gc
                 gc.enable()
@@ -112,6 +125,12 @@ def KMeans(X, k, num_iter=50, seed = 0, measure=False, kmeans_pp = False, tol = 
             if measure_inertia:
                 return labels, centroids, inertia_list
             return labels, centroids
+        
+        
+    if measure and return_steps:    
+        # Re-enable gc
+        gc.enable()
+        return labels, centroids, np.array(A_time), np.array(B_time), i
         
     if measure:
         # Re-enable gc

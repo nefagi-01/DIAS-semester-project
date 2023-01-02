@@ -1,0 +1,10 @@
+# Ignore all directories of type .ipynb_checkpoints
+.ipynb_checkpoints/
+utils/.ipynb_checkpoints/
+
+
+# Ignore all directories of type __pycache__
+__pycache__/
+utils/__pycache__/
+
+

@@ -37,7 +37,7 @@ def getCentroids(X, labels, k, old_centroids):
     group_counts = np.bincount(labels, minlength=k)[:, None]
     not_empty_clusters = (group_counts!=0)
     k_not_empty = not_empty_clusters.sum()
-    fn = lambda w: np.bincount(labels, weights=w, minlength=k_not_empty)
+    fn = lambda w: np.bincount(labels, weights=w, minlength=k)
     centroids[not_empty_clusters.reshape(-1)] = np.apply_along_axis(fn, 0, X)[not_empty_clusters.reshape(-1)] / group_counts[not_empty_clusters, None]
     return centroids
 

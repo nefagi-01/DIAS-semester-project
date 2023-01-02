@@ -18,7 +18,6 @@ def getDist(X, centroids):
 def getAvgDist(X, centroids):
     return np.mean(getDist(X, centroids).min(1))
 
-
 def getLables(X, centroids, get_e=False, get_inertia = False):
     dist = getDist(X, centroids)
     labels = dist.argmin(1)
@@ -39,7 +38,7 @@ def getCentroids(X, labels, k, old_centroids):
     not_empty_clusters = (group_counts!=0)
     k_not_empty = not_empty_clusters.sum()
     fn = lambda w: np.bincount(labels, weights=w, minlength=k_not_empty)
-    centroids[not_empty_clusters.reshape(-1)] = np.apply_along_axis(fn, 0, X) / group_counts[not_empty_clusters, None]
+    centroids[not_empty_clusters.reshape(-1)] = np.apply_along_axis(fn, 0, X)[not_empty_clusters.reshape(-1)] / group_counts[not_empty_clusters, None]
     return centroids
 
 def getCorrectedLables(X, centroids, speculated_centroids, e, labels):
@@ -324,7 +323,7 @@ def KMeans_sketching(X, k, num_iter=50, seed=None, subsample_size = 0.01, save =
         # Execute (a,b) n_execution times
         for j in range(n_executions):
             # A - Assignment step
-            fast_labels = getLables(X_subsample, fast_centroids) 
+            fast_labels = getLables(X_subsample, fast_centroids)
             # B - Update step
             fast_centroids = getCentroids(X_subsample, fast_labels, k, fast_centroids)
             

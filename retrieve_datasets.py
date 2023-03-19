@@ -38,7 +38,7 @@ def save_data_as_csv(file_path, data):
 
 def retrieve_datasets():
     """Retrieve the datasets and save them to CSV files."""
-    types = {
+    datasets = {
         'S': ['s1', 's2', 's3', 's4'],
         'A': ['a1', 'a2', 'a3'],
         'G2': ['g2-1-10.txt', 'g2-1-100.txt', 'g2-1-20.txt', 'g2-1-30.txt', 'g2-1-40.txt', 'g2-1-50.txt', 'g2-1-60.txt',
@@ -66,7 +66,7 @@ def retrieve_datasets():
 
     root_url = "http://cs.uef.fi/sipu/datasets/"
 
-    for t, files in types.items():
+    for t, files in datasets.items():
         if t == "G2":
             zip_url = "http://cs.uef.fi/sipu/datasets/g2-txt.zip"
             zip_file_path = "datasets/g2-gt-txt.zip"
@@ -78,7 +78,7 @@ def retrieve_datasets():
                 data = parse_data(file_path)
                 csv_file_path = f"datasets/{file_name.split('.')[0]}.csv"
                 save_data_as_csv(csv_file_path, data)
-                types[t][types[t].index(file_name)] = csv_file_path
+                datasets[t][datasets[t].index(file_name)] = csv_file_path
                 os.remove(file_path)
         else:
             for file_name in files:
@@ -88,11 +88,11 @@ def retrieve_datasets():
                 data = parse_data(file_path)
                 csv_file_path = f"datasets/{file_name}.csv"
                 save_data_as_csv(csv_file_path, data)
-                types[t][types[t].index(file_name)] = csv_file_path
+                datasets[t][datasets[t].index(file_name)] = csv_file_path
                 os.remove(file_path)
 
-    with open("datasets/types.json", "w") as f:
-        json.dump(types, f)
+    with open("datasets/datasets.json", "w") as f:
+        json.dump(datasets, f)
 
 
 if __name__ == "__main__":

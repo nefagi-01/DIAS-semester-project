@@ -1,0 +1,19 @@
+Dataset Type,Inertia,labels,dataset_index,method,Steps
+Noisy circles,0.07092669423204903,[7 2 5 ... 7 8 4],0,Vanilla K-means,10
+Noisy circles,0.06966059509534049,[8 3 6 ... 7 5 7],0,K-means++,11
+Noisy circles,0.06961133717426338,[7 5 3 ... 5 8 6],0,Speculative K-means,3
+Noisy moons,0.055557199770909935,[9 6 8 ... 8 7 6],1,Vanilla K-means,30
+Noisy moons,0.0396648651083126,[5 4 7 ... 7 6 9],1,K-means++,6
+Noisy moons,0.03564891153608065,[4 9 8 ... 8 7 1],1,Speculative K-means,4
+Varied,1.82934633279164,[9 3 5 ... 2 8 5],2,Vanilla K-means,7
+Varied,1.7982032918067445,[0 6 3 ... 2 2 3],2,K-means++,11
+Varied,1.5338815892626216,[9 9 3 ... 2 4 3],2,Speculative K-means,4
+Anisotropic,0.3476491555651068,[9 3 5 ... 2 8 7],3,Vanilla K-means,12
+Anisotropic,0.28370924405235226,[3 3 5 ... 4 2 1],3,K-means++,5
+Anisotropic,0.346693006128437,[9 9 5 ... 2 8 7],3,Speculative K-means,2
+Blobs,1.1156219313541702,[4 3 6 ... 0 5 7],4,Vanilla K-means,7
+Blobs,0.9399775659562699,[3 5 2 ... 6 1 5],4,K-means++,5
+Blobs,1.1156532891310122,[4 3 6 ... 0 9 7],4,Speculative K-means,1
+No structure,0.017103141428866573,[7 2 5 ... 2 3 2],5,Vanilla K-means,21
+No structure,0.017135376689071762,[6 5 4 ... 5 9 4],5,K-means++,10
+No structure,0.017015330362166122,[8 6 5 ... 6 3 7],5,Speculative K-means,3

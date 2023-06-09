@@ -96,7 +96,7 @@ def generate_clusters(n_clusters=3, d=2, n=100, seed = None, plot = False):
     return centers, cluster_std, X, y
 
 # function for plotting list of timeseries
-def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = True, ax = None, title = None):
+def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = True, ax = None, title = None, save = False, path = None):
     df.index = df.index + 1
     ax = sns.lineplot(data = df, ax = ax)
     # enforce integer ticks on x-axis
@@ -105,6 +105,8 @@ def timeseries_plot(df, xlabel: str = None, ylabel: str = None, show: bool = Tru
         ax.set(xlabel=xlabel, ylabel=ylabel)
     if title:
         ax.set_title(title)
+    if save:
+        plt.savefig(path, format="svg", bbox_inches='tight')
     if show:
         plt.show()
     return ax
